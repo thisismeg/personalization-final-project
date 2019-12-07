@@ -9,3 +9,6 @@ Authors:
 The repository contains the following files: 
  1. final_report.ipynb : FINAL PRODUCT. Jupyter notebook file with markdown and results of our recommender systems
  2. requirements.txt : list of packages required to run our code
+
+Google Doc:
+https://docs.google.com/document/d/1ICoN0y7cmHgzuIqwMO1gTJpnhoKlrUU5wZYGNVlry9w/edit?ts=5debf1d0
