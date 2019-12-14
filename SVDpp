@@ -1,0 +1,503 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 37,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from surprise import SVD\n",
+    "from surprise import SVDpp\n",
+    "from surprise import NMF\n",
+    "from surprise.model_selection.validation import cross_validate\n",
+    "from surprise import Dataset\n",
+    "from surprise import accuracy\n",
+    "from surprise.model_selection import train_test_split as s_train_test_split\n",
+    "from surprise.model_selection import KFold\n",
+    "from surprise import Reader\n",
+    "\n",
+    "import random \n",
+    "\n",
+    "\n",
+    "\n",
+    "\n",
+    "import pandas as pd\n",
+    "import json\n",
+    "from tqdm import tqdm\n",
+    "import numpy as np"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def convert_json_to_df(path, file_name, column_names):\n",
+    "    line_count = len(open(path + file_name).readlines())    \n",
+    "    columns_dict = {name: [] for name in column_names}\n",
+    "\n",
+    "    with open(path + file_name) as f:\n",
+    "        for line in tqdm(f, total=line_count):\n",
+    "            blob = json.loads(line)\n",
+    "            \n",
+    "            for key in column_names:\n",
+    "                columns_dict[key].append(blob[key])\n",
+    "    \n",
+    "    return pd.DataFrame(columns_dict)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "path = \"/Users/jungahjuliashin/Documents/personalization_final_project/personalization-final-project-master/yelp_dataset/\"\n",
+    "file_name = \"review.json\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "100%|██████████| 6685900/6685900 [01:29<00:00, 75063.36it/s]\n"
+     ]
+    }
+   ],
+   "source": [
+    "# review.json\n",
+    "ratings = convert_json_to_df(path, file_name, ['user_id', 'business_id', 'stars', 'date'])\n",
+    "\n",
+    "user_counts = ratings[\"user_id\"].value_counts()\n",
+    "active_users = user_counts.loc[user_counts >= 5].index.tolist()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>user_id</th>\n",
+       "      <th>business_id</th>\n",
+       "      <th>rating</th>\n",
+       "      <th>date</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>hG7b0MtEbXx5QzbzE6C_VA</td>\n",
+       "      <td>ujmEBvifdJM6h6RLv4wQIg</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>2013-05-07 04:34:36</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>yXQM5uF2jS6es16SJzNHfg</td>\n",
+       "      <td>NZnhc2sEQy3RmzKTZnqtwQ</td>\n",
+       "      <td>5.0</td>\n",
+       "      <td>2017-01-14 21:30:33</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>n6-Gk65cPZL6Uz8qRm3NYw</td>\n",
+       "      <td>WTqjgwHlXbSFevF32_DJVw</td>\n",
+       "      <td>5.0</td>\n",
+       "      <td>2016-11-09 20:09:03</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>dacAIZ6fTM6mqwW5uxkskg</td>\n",
+       "      <td>ikCg8xy5JIg_NGPx-MSIDA</td>\n",
+       "      <td>5.0</td>\n",
+       "      <td>2018-01-09 20:56:38</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>ssoyf2_x0EQMed6fgHeMyQ</td>\n",
+       "      <td>b1b1eb3uo-w561D0ZfCEiQ</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>2018-01-30 23:07:38</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                  user_id             business_id  rating                 date\n",
+       "0  hG7b0MtEbXx5QzbzE6C_VA  ujmEBvifdJM6h6RLv4wQIg     1.0  2013-05-07 04:34:36\n",
+       "1  yXQM5uF2jS6es16SJzNHfg  NZnhc2sEQy3RmzKTZnqtwQ     5.0  2017-01-14 21:30:33\n",
+       "2  n6-Gk65cPZL6Uz8qRm3NYw  WTqjgwHlXbSFevF32_DJVw     5.0  2016-11-09 20:09:03\n",
+       "3  dacAIZ6fTM6mqwW5uxkskg  ikCg8xy5JIg_NGPx-MSIDA     5.0  2018-01-09 20:56:38\n",
+       "4  ssoyf2_x0EQMed6fgHeMyQ  b1b1eb3uo-w561D0ZfCEiQ     1.0  2018-01-30 23:07:38"
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "ratings.rename(columns={'stars': 'rating'}, inplace=True)\n",
+    "ratings.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>user_id</th>\n",
+       "      <th>business_id</th>\n",
+       "      <th>rating</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>24</th>\n",
+       "      <td>8NwU4TRsD3S6gIfBqFzDMQ</td>\n",
+       "      <td>Sfc8Haz2Yri8Mo1L0E0TsA</td>\n",
+       "      <td>5.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>57</th>\n",
+       "      <td>0FMte0z-repSVWSJ_BaQTg</td>\n",
+       "      <td>WsdmzI2giWHcRN2plprxIg</td>\n",
+       "      <td>2.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>77</th>\n",
+       "      <td>hTZb1INhnCG8URaFywVoYQ</td>\n",
+       "      <td>nDaW2hhQV5KYiGH7HzAOcg</td>\n",
+       "      <td>3.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>129</th>\n",
+       "      <td>TAxEXlveQ5JrRsZ3Uta8BA</td>\n",
+       "      <td>-4TMQnQJW1yd6NqGRDvAeA</td>\n",
+       "      <td>4.0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>160</th>\n",
+       "      <td>mZ1gXzL6Tn5Oky8_j0Kp7g</td>\n",
+       "      <td>TVLAvAFx0FqAkKGKHVjHpQ</td>\n",
+       "      <td>4.0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                    user_id             business_id  rating\n",
+       "24   8NwU4TRsD3S6gIfBqFzDMQ  Sfc8Haz2Yri8Mo1L0E0TsA     5.0\n",
+       "57   0FMte0z-repSVWSJ_BaQTg  WsdmzI2giWHcRN2plprxIg     2.0\n",
+       "77   hTZb1INhnCG8URaFywVoYQ  nDaW2hhQV5KYiGH7HzAOcg     3.0\n",
+       "129  TAxEXlveQ5JrRsZ3Uta8BA  -4TMQnQJW1yd6NqGRDvAeA     4.0\n",
+       "160  mZ1gXzL6Tn5Oky8_j0Kp7g  TVLAvAFx0FqAkKGKHVjHpQ     4.0"
+      ]
+     },
+     "execution_count": 30,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "active_user_only_ratings_df = ratings[ratings['user_id'].isin(active_users)]\n",
+    "\n",
+    "sample_size = [50000]#,60000,100000]\n",
+    "random.seed(1)\n",
+    "\n",
+    "sampleUID = active_user_only_ratings_df['user_id'].unique()[np.random.randint(active_user_only_ratings_df['user_id'].unique().shape[0], size=10000)]\n",
+    "active_user_only_ratings_df_sample = active_user_only_ratings_df[active_user_only_ratings_df['user_id'].isin(sampleUID)]\n",
+    "\n",
+    "\n",
+    "\n",
+    "active_user_only_ratings_df_sample = active_user_only_ratings_df_sample[['user_id','business_id','rating']]\n",
+    "\n",
+    "active_user_only_ratings_df_sample.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "153395"
+      ]
+     },
+     "execution_count": 9,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "len(active_user_only_ratings_df_sample)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "reader = Reader(rating_scale=(1.0, 5.0))\n",
+    "data = Dataset.load_from_df(active_user_only_ratings_df_sample[['user_id', 'business_id', 'rating']], reader)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 41,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "test_rmse     1.270647\n",
+      "train_rmse    0.874896\n",
+      "fit_time      6.107754\n",
+      "test_time     0.406072\n",
+      "dtype: float64\n",
+      "test_rmse      1.269534\n",
+      "train_rmse     0.869113\n",
+      "fit_time      72.552493\n",
+      "test_time      2.826237\n",
+      "dtype: float64\n",
+      "test_rmse      1.453476\n",
+      "train_rmse     0.264583\n",
+      "fit_time      10.015560\n",
+      "test_time      0.371819\n",
+      "dtype: float64\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>test_rmse</th>\n",
+       "      <th>train_rmse</th>\n",
+       "      <th>fit_time</th>\n",
+       "      <th>test_time</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>Algorithm</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>SVDpp</th>\n",
+       "      <td>1.269534</td>\n",
+       "      <td>0.869113</td>\n",
+       "      <td>72.552493</td>\n",
+       "      <td>2.826237</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>SVD</th>\n",
+       "      <td>1.270647</td>\n",
+       "      <td>0.874896</td>\n",
+       "      <td>6.107754</td>\n",
+       "      <td>0.406072</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>NMF</th>\n",
+       "      <td>1.453476</td>\n",
+       "      <td>0.264583</td>\n",
+       "      <td>10.015560</td>\n",
+       "      <td>0.371819</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "           test_rmse  train_rmse   fit_time  test_time\n",
+       "Algorithm                                             \n",
+       "SVDpp       1.269534    0.869113  72.552493   2.826237\n",
+       "SVD         1.270647    0.874896   6.107754   0.406072\n",
+       "NMF         1.453476    0.264583  10.015560   0.371819"
+      ]
+     },
+     "execution_count": 41,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "benchmark = []\n",
+    "\n",
+    "for algorithm in [SVD(), SVDpp(), NMF()]:\n",
+    "    # cross validation\n",
+    "    # measures available: RMSE, MAE\n",
+    "    # cv: determines how the train & test is split: 3-fold \n",
+    "    # If verbose = True: accuracy measures for each split are printed, as well as train and test times\n",
+    "    results = cross_validate(algorithm, data, measures=['RMSE'], cv=3, return_train_measures=True,verbose=False)\n",
+    "    \n",
+    "    # Get results & algorithm\n",
+    "    tmp = pd.DataFrame.from_dict(results).mean(axis=0) #test_rmse, fit_time, test_time    \n",
+    "    print(tmp)\n",
+    "    tmp = tmp.append(pd.Series([str(algorithm).split(' ')[0].split('.')[-1]], index=['Algorithm']))\n",
+    "    benchmark.append(tmp)\n",
+    "    \n",
+    "pd.DataFrame(benchmark).set_index('Algorithm').sort_values('test_rmse')  "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "'''\n",
+    "ATTEMPT AT AUTOREC ???\n",
+    "'''\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Train precision: 0.40\n",
+      "Test precision: 0.05\n"
+     ]
+    }
+   ],
+   "source": [
+    "from lightfm import LightFM\n",
+    "from lightfm.datasets import fetch_movielens\n",
+    "\n",
+    "from lightfm.evaluation import precision_at_k\n",
+    "\n",
+    "\n",
+    "data = fetch_movielens(min_rating=5.0)\n",
+    "\n",
+    "model = LightFM(loss='warp')\n",
+    "model.fit(data['train'], epochs=30, num_threads=2)\n",
+    "#predictions = model.predict(test_user_ids, test_item_ids)\n",
+    "\n",
+    "print(\"Train precision: %.2f\" % precision_at_k(model, data['train'], k=5).mean())\n",
+    "print(\"Test precision: %.2f\" % precision_at_k(model, data['test'], k=5).mean())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "active_user_only_ratings_df = ratings[ratings['user_id'].isin(active_users)]\n",
+    "\n",
+    "sample_size = [50000,60000,100000]\n",
+    "\n",
+    "for i in range(5):\n",
+    "    print(i)\n",
+    "    \n",
+    "    for s in sample_size:\n",
+    "        sampleUID = active_user_only_ratings_df['user_id'].unique()[np.random.randint(active_user_only_ratings_df['user_id'].unique().shape[0], size=s)]\n",
+    "        active_user_only_ratings_df_sample = active_user_only_ratings_df[active_user_only_ratings_df['user_id'].isin(sampleUID)]\n",
+    "\n",
+    "        print('sample size', s)\n",
+    "        print('data set size', len(active_user_only_ratings_df_sample))\n",
+    "        print('-----------')"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
