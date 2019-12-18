@@ -10,3 +10,4 @@ Followings are python packages required to run the code:
 * math
 * collections
 * datetime
+* tensorflow (2.0.0)
